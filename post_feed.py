@@ -26,7 +26,7 @@ except pymysql.MySQLError as e:
 logger.info("SUCCESS: Connection to RDS MySQL instance succeeded")
 
 def is_s3(url): 
-    return 's3.amazonaws.com' in url or 's3://mixbucket/' in url
+    return 's3.amazonaws.com' in url or 's3://**********/' in url
 
 def group_exists(groupID): 
     query = "SELECT COUNT(*) FROM group_table WHERE group_id = %s"
@@ -122,6 +122,35 @@ def is_banned(userID, groupID):
             return True
         
     return False;     
+
+def calculate_ratio(post):
+    # print(f"Post for ratio: {post}")
+    try: 
+        likes = json.loads(post[8])
+    except: 
+        likes = "null"
+    
+    try: 
+        dislikes = json.loads(post[9])
+    except: 
+        dislikes = "null"
+        
+    # print(f"Likes: {likes} \n Dislikes: {dislikes}")
+    likeCount = 0
+    dislikeCount = 0
+    
+    if likes is not None and likes != "null": 
+        likeCount = len(likes["likes"])
+
+    if dislikes is not None and dislikes != "null": 
+        dislikeCount = len(dislikes["dislikes"])
+        
+        
+    # print(f"LikeCount: {likeCount} \n DislikeCount: {dislikeCount}")
+    if dislikeCount == 0: 
+        return likeCount
+    else: 
+        return (likeCount / dislikeCount)
 
 def lambda_handler(event, context):
     """
@@ -251,7 +280,10 @@ def lambda_handler(event, context):
         result = cur.fetchall()
     conn.commit()
     
-    for post in result: 
+    
+    sortedPosts = sorted(result, key=lambda post: calculate_ratio(post), reverse=True)
+    # print(f"Pre-sort: {result}\nPost-sort:{sortedPosts}")
+    for post in sortedPosts: 
         if not group_exists(post[4]) or not user_exists(post[3]): 
             continue
         if (not_blocked(userID, post[3]) and not_blocked(post[3], userID)) and post not in feedPosts and is_public_group(post[4]):
@@ -357,8 +389,8 @@ def lambda_handler(event, context):
             purl = "null"
         else: 
             if is_s3(tmp): 
-                obj = tmp.replace("s3://mixbucket/","")
-                purl = create_presigned_url('mixbucket',obj,3600)
+                obj = tmp.replace("s3://********/","")
+                purl = create_presigned_url('********',obj,3600)
                 if purl == "Error": 
                     return {
                         'statusCode': 403, 
